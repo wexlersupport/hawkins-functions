@@ -7,6 +7,7 @@ import getData, {deleteOneData, insertData, getDynamicField} from "../server/api
 import getGroupByWorkOrderId from "../server/api/postgre/quotation_details.js";
 import fetchDynamicMax from "../server/api/postgre/dynamic_max.js";
 import fetchWorkOrderId from "../server/api/vista/work-order-id.js";
+import fetchWorkCompleted from "../server/api/vista/work-completed-search.js";
 import fetchCustomerId from "../server/api/vista/customer-id.js";
 import combinedSingleObjectMatchSearch from "../utils/search_materials.js";
 import sendEmail from '../utils/sendgrid_helper.js'
@@ -17,6 +18,7 @@ import onMatCostSave, { onMiscCostSave, onSubconCostSave, onLaborCostSave, onBid
 let mat_cost_items = []
 let misc_cost_items = []
 let sub_cost_items = []
+let work_completed = []
 let labor_cost_items = {
     laborHours: 8,
     overtimeHours: 0.5,
@@ -42,12 +44,12 @@ export default async function generateQuotation() {
         console.log(`[${formatJsDateToDatetime(new Date())}]: Generate quote job running every 5 minutes`);
         await logs()
 
-        const new_work_order = [123472, 123509, 123457]
+        const new_work_order = [123472, 123567, 123553, 123509, 123605]
         if (new_work_order.length > 0) {
             const { data } = await getGroupByWorkOrderId('quotation_details', 'work_order_id', 'work_order_id', new_work_order, 'work_order_id');
             // console.log('getGroupByWorkOrderId: ', new_work_order, data);
             const potential_missing_work_order = await findMissingElements(new_work_order, data);
-            // console.log('potential_missing_work_order: ', potential_missing_work_order);
+            console.log('potential_new_work_order: ', potential_missing_work_order);
             if (potential_missing_work_order.length === 0) {
                 console.log('No new work orders found.');
                 return;
@@ -56,15 +58,25 @@ export default async function generateQuotation() {
             const materials = await fetchMaterials();
             // console.log('Materials fetched: ', materials.length);
 
-            const search_value = ['wall plate', '120v', 'cable'];
-            await onAutoGenerateMaterials(search_value, materials);
-            // console.log('mat_cost_items: ', mat_cost_items);
+            potential_missing_work_order.forEach(async (work_order_id, index) => {
+                mat_cost_items = []
+                misc_cost_items = []
+                sub_cost_items = []
 
-            potential_missing_work_order.forEach(async (work_order_id) => {
-                // work_order_id = id;
-                // const { response } = await fetchWorkOrderId(id);
-                // console.log('fetchWorkOrderId: ', response.WorkOrder);
-                await onSave(work_order_id);
+                const filterObj = {value: +work_order_id, propertyName: 'WorkOrder', operator: 'Equal'}
+                const { response: res } = await fetchWorkCompleted(filterObj)
+                work_completed = res?.data || [];
+                // console.log('work_completed: ', work_order_id, work_completed.length);
+                if (!work_completed || work_completed.length === 0) {
+                    console.log('No work completed data available.');
+                } else {
+                    await onAutoGenerateMaterials(work_completed, materials, work_order_id);
+                    await onAutoGenerateMisc(work_completed, materials, work_order_id);
+                }
+
+                setTimeout(async () => {
+                    await onSave(work_order_id);
+                }, index * 1000);
             });
         }
     })
@@ -90,59 +102,36 @@ async function onSave(work_order_id) {
         quotationDetails = await getDynamicField('quotation_details', quotation_id, 'quotation_id')
         // console.log('quotationDetails ', quotationDetails.data.length);
 
-        workOrderDetail = { value: {
-                WorkOrder: 'asdf',
-                Customer: 1,
-                CustGroup: 1,
-                ServiceSite: 'asdf',
-                ServiceCenter: 'asdf',
-                EnteredBy: 'asdf',
-                LeadTechnician: 'asdf',
-                WOStatus: 'asdf',
-                ScopeDetails: [{
-                    CallType: 'asdf',
-                    WorkScope: 'asdf',
-                    BillToARCustomer: 'asdf',
-                    Description: 'asdf',
-                    CustomerPO: 'asdf',
-                    PriorityName: 'asdf',
-                    IsTrackingWIP: 'asdf',
-                    PriceMethod: 'asdf',
-                    UseAgreementRates: 'asdf',
-                    IsPreventativeMaintenance: 'asdf',
-                    RevenueRecognition: 'asdf',
-                    RateTemplate: 'asdf'
-                }]
-            }
-        }
+        const { response: workOrderResponse } = await fetchWorkOrderId(work_order_id)
+        // console.log('fetchWorkOrderId: ', workOrderDetail);
+        workOrderDetail = workOrderResponse;
 
-        const { response: res } = await fetchCustomerId(workOrderDetail.value.Customer, workOrderDetail.value.CustGroup);
-        // console.log('fetchCustomerId: ', res);
-
-        customerDetail = { value: res }
+        const { response: customerResponse } = await fetchCustomerId(workOrderDetail.Customer, workOrderDetail.CustGroup);
+        // console.log('fetchCustomerId: ', customerResponse);
+        customerDetail = customerResponse;
 
         const pdfDoc = generatePdf({
             quotation_id,
             work_order_id,
             quotation_details: quotationDetails.data,
-            work_order_details: workOrderDetail.value,
-            customer_details: customerDetail.value
+            work_order_details: workOrderDetail,
+            customer_details: customerDetail
         })
         // console.log('pdfDoc ', pdfDoc)
 
         pdfDoc.getBase64(async (data) => {
-            const name = workOrderDetail.value?.ContactName ?? customerDetail.value?.Name
+            const name = workOrderDetail?.ContactName ?? customerDetail?.Name
             let emailObj = {
                 from: 'francis.regala@strattonstudiogames.com',
-                to: 'pantet008@gmail.com',
+                to: 'support@wexlerllc.com',
                 subject: `${name} - WO#${work_order_id} - Quote#${quotation_id}`,
-                html: '<p>Hi,</p><p><br></p><p>See the attached quote and let me know how you would like to proceed.</p><p><br></p><p>Thank you.</p>',
+                html: '<p>Hi,</p><p><br></p><p>You have a new generated quotation available. Please see attached file for more details.</p><p><br></p><p>Thank you.</p>',
                 filename: `${`${name}_${work_order_id}_${quotation_id}`}.pdf`,
                 content: data,
             }
             // console.log('emailObj ', emailObj)
-            // const email_res = await sendEmail(emailObj)
-            const email_res = true
+            const email_res = await sendEmail(emailObj)
+            // const email_res = true
             // console.log('email_res ', email_res)
 
             if (email_res) {
@@ -176,47 +165,27 @@ async function onSave(work_order_id) {
     return null
 }
 
-async function costs() {
-    let materialCosts = 0
-    if (mat_cost_items?.length > 0) {
-        materialCosts = ((mat_cost_items.reduce((acc, item) => acc + item.cost, 0) +
-            (mat_cost_items.reduce((acc, item) => acc + item.cost, 0) * mat_cost_pvs_input / 100) +
-            (mat_cost_items.reduce((acc, item) => acc + item.cost, 0) +
-            (mat_cost_items.reduce((acc, item) => acc + item.cost, 0) * mat_cost_pvs_input / 100)) *
-            mat_cost_tax_input / 100) || 0)
+async function onAutoGenerateMaterials(work_completed, material_list, work_order_id) {
+    // Type = 4 is for materials
+    const search_value = work_completed?.filter((item) => item.Type === 4).map((_item) => _item.Description) || [];
+    // console.log('Search Value:', search_value);
+    if (!search_value || search_value.length === 0) {
+        console.log('No search terms provided.');
+        return;
     }
-    return {
-        materialCosts,
-        miscellaneousCosts: misc_cost_items.reduce((acc, item) => acc + item.cost, 0) || 0,
-        subscontractCosts: sub_cost_items.reduce((acc, item) => acc + item.cost, 0) || 0,
-        laborCosts: labor_cost_items || [],
-        gross_profit: gross_profit || {}
-    }
-}
 
-async function onAutoGenerateMaterials(search_value, material_list) {
     const searchResultsAsObjects = combinedSingleObjectMatchSearch(search_value, material_list);
-    // console.log('Search Results:', searchResultsAsObjects);
+    // console.log('Search Results:', searchResultsAsObjects.length);
     if (searchResultsAsObjects) {
-        mat_cost_items = [];
         searchResultsAsObjects.forEach((term) => {
             if (term) {
                 mat_cost_items.push({
+                    work_order_id,
                     search_term: term.search_term,
                     name: term.name,
                     cost: Number(term.cost),
                 })
             }
-        });
-
-        misc_cost_items = [];
-        misc_cost_items.push({
-            name: 'Miscellaneous Test1',
-            cost: 101,
-        });
-        misc_cost_items.push({
-            name: 'Miscellaneous Test2',
-            cost: 101.55,
         });
 
         sub_cost_items = [];
@@ -229,6 +198,20 @@ async function onAutoGenerateMaterials(search_value, material_list) {
             cost: 101.55,
         });
     }
+}
+
+async function onAutoGenerateMisc(work_completed, material_list, work_order_id) {
+    // Type = 2,3,5 is for miscellaneous
+    const search_value = work_completed?.filter((item) => [2, 3, 5].includes(item.Type))
+    console.log('Misc Search Value:', search_value.length);
+
+    search_value.forEach((item, index) => {
+        misc_cost_items.push({
+            work_order_id,
+            name: item.Description || 'Miscellaneous ' + (index + 1),
+            cost: Number(item.PriceTotal) || Number(item.CostRate) || 0,
+        })
+    });
 }
 
 async function findMissingElements(arr1, arr2) {

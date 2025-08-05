@@ -5,7 +5,8 @@ import formatJsDateToDatetime from "../../utils/index.js";
 const created_at = formatJsDateToDatetime(new Date())
 
 export default async function onMatCostSave(mat_cost_items, quotation_id, work_order_id, mat_cost_pvs_input, mat_cost_tax_input) {
-    const item_promise = await onItemLoop(mat_cost_items, 'mat_cost', quotation_id, work_order_id)
+    const items = mat_cost_items.filter(item => item.work_order_id === work_order_id);
+    const item_promise = await onItemLoop(items, 'mat_cost', quotation_id, work_order_id)
 
     return [
         sendPostgreRequest({item: 'mat_cost_pvs_input', name: 'mat_cost_pvs_input', cost: mat_cost_pvs_input, quotation_id, work_order_id}),
@@ -15,11 +16,13 @@ export default async function onMatCostSave(mat_cost_items, quotation_id, work_o
 }
 
 export async function onMiscCostSave(misc_cost_items, quotation_id, work_order_id) {
-    return await onItemLoop(misc_cost_items, 'misc_cost', quotation_id, work_order_id);
+    const items = misc_cost_items.filter(item => item.work_order_id === work_order_id);
+    return await onItemLoop(items, 'misc_cost', quotation_id, work_order_id);
 }
 
 export async function onSubconCostSave(sub_cost_items, quotation_id, work_order_id) {
-    return await onItemLoop(sub_cost_items, 'subcon_cost', quotation_id, work_order_id)
+    const items = sub_cost_items.filter(item => item.work_order_id === work_order_id);
+    return await onItemLoop(items, 'subcon_cost', quotation_id, work_order_id);
 }
 
 export async function onLaborCostSave(labor_cost_items, quotation_id, work_order_id) {

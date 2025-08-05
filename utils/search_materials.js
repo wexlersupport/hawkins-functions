@@ -52,8 +52,51 @@ export default function combinedSingleObjectMatchSearch(searchTerms, materials) 
         }
         if (bestMatch) {
             results.push({ ...bestMatch, search_term: term });
+        } else {
+            const wordsByTwo = groupWordsByTwo(lowerCaseTerm.split(' '))
+            for (const [index, word] of wordsByTwo.entries()) {
+                const fuseMatches = fuse.search(word);
+                if (fuseMatches.length > 0) {
+                    const match = fuseMatches[0].item;
+                    results.push({ ...match, search_term: term });
+                    break;
+                } else {
+                    if (index === wordsByTwo.length - 1) {
+                        console.log(`No matches found for word: ${term} - ${word}`);
+                    }
+                    
+                }
+            }
         }
     });
 
     return results;
+}
+
+function groupWordsByTwo(inputArray) {
+    // This will hold our final result of grouped strings.
+    const groupedArray = [];
+
+    // Loop through the input array, incrementing the counter by 2 each time.
+    for (let i = 0; i < inputArray.length; i += 2) {
+        // Take the current word.
+        const firstWord = inputArray[i];
+        
+        // Take the next word. We use a conditional check to make sure it exists.
+        // If there is no next word (i.e., the array has an odd number of elements),
+        // nextWord will be undefined.
+        const nextWord = inputArray[i + 1];
+
+        // Check if a next word exists.
+        if (nextWord) {
+            // If it exists, combine the two words with a space.
+            const combinedString = `${firstWord} ${nextWord}`;
+            groupedArray.push(combinedString);
+        } else {
+            // If there's no next word, just add the last word to the array by itself.
+            groupedArray.push(firstWord);
+        }
+    }
+
+    return groupedArray;
 }
