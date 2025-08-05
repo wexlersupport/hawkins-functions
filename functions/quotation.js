@@ -8,11 +8,12 @@ import getGroupByWorkOrderId from "../server/api/postgre/quotation_details.js";
 import fetchDynamicMax from "../server/api/postgre/dynamic_max.js";
 import fetchWorkOrderId from "../server/api/vista/work-order-id.js";
 import fetchWorkCompleted from "../server/api/vista/work-completed-search.js";
+import fetchWorkOrder from "../server/api/vista/work-order-search.js";
 import fetchCustomerId from "../server/api/vista/customer-id.js";
 import combinedSingleObjectMatchSearch from "../utils/search_materials.js";
 import sendEmail from '../utils/sendgrid_helper.js'
 import generatePdf from '../utils/pdfmake_helper.js'
-import formatJsDateToDatetime from "../utils/index.js";
+import formatJsDateToDatetime, {convertDate} from "../utils/index.js";
 import onMatCostSave, { onMiscCostSave, onSubconCostSave, onLaborCostSave, onBidPriceCostSave } from "../utils/quotation/create.js";
 
 let mat_cost_items = []
@@ -40,23 +41,31 @@ const mat_cost_tax_input = 6
 let quotationDetails, workOrderDetail, customerDetail
 
 export default async function generateQuotation() {
-    const quotationJob = CronJob.schedule("*/10 * * * * *", async () => {
+    const materials = await fetchMaterials();
+
+    const quotationJob = CronJob.schedule("*/30 * * * * *", async () => {
         console.log(`[${formatJsDateToDatetime(new Date())}]: Generate quote job running every 5 minutes`);
         await logs()
+        // console.log('Materials fetched: ', materials.length);
 
-        const new_work_order = [123472, 123567, 123553, 123509, 123605]
+        // const new_work_order = [123472, 123567, 123553, 123509, 123605]
+        const today = new Date();
+        const dateAfter = new Date(today);
+        dateAfter.setDate(today.getDate() - 2);
+        const filterObj = {value: convertDate(dateAfter), propertyName: 'RequestedDate', operator: 'GreaterThanOrEqual'}
+        const { response: res } = await fetchWorkOrder(filterObj)
+        const new_work_order = res.data.map(item => item.WorkOrder);
+        console.log('New Work Orders for today: ', new_work_order);
+
         if (new_work_order.length > 0) {
             const { data } = await getGroupByWorkOrderId('quotation_details', 'work_order_id', 'work_order_id', new_work_order, 'work_order_id');
             // console.log('getGroupByWorkOrderId: ', new_work_order, data);
             const potential_missing_work_order = await findMissingElements(new_work_order, data);
             console.log('potential_new_work_order: ', potential_missing_work_order);
             if (potential_missing_work_order.length === 0) {
-                console.log('No new work orders found.');
+                console.log('No potential new work orders found.');
                 return;
             }
-
-            const materials = await fetchMaterials();
-            // console.log('Materials fetched: ', materials.length);
 
             potential_missing_work_order.forEach(async (work_order_id, index) => {
                 mat_cost_items = []
