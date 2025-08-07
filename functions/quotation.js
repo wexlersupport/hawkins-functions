@@ -45,27 +45,29 @@ export default async function generateQuotation() {
 
     const quotationJob = CronJob.schedule("*/30 * * * * *", async () => {
         console.log(`[${formatJsDateToDatetime(new Date())}]: Generate quote job running every 5 minutes`);
-        await logs()
+        await logs('initial')
         // console.log('Materials fetched: ', materials.length);
 
         // const new_work_order = [123472, 123567, 123553, 123509, 123605]
         const today = new Date();
         const dateAfter = new Date(today);
-        dateAfter.setDate(today.getDate() - 2);
+        dateAfter.setDate(today.getDate() - 1);
         const filterObj = {value: convertDate(dateAfter), propertyName: 'RequestedDate', operator: 'GreaterThanOrEqual'}
         const { response: res } = await fetchWorkOrder(filterObj)
         const new_work_order = res.data.map(item => item.WorkOrder);
-        console.log('New Work Orders for today: ', new_work_order);
+        console.log('Work Orders for today: ', new_work_order);
 
         if (new_work_order.length > 0) {
             const { data } = await getGroupByWorkOrderId('quotation_details', 'work_order_id', 'work_order_id', new_work_order, 'work_order_id');
             // console.log('getGroupByWorkOrderId: ', new_work_order, data);
             const potential_missing_work_order = await findMissingElements(new_work_order, data);
-            console.log('potential_new_work_order: ', potential_missing_work_order);
             if (potential_missing_work_order.length === 0) {
-                console.log('No potential new work orders found.');
+                // console.log('No potential new work orders found.');
+                await logs('without_potential_work_order')
                 return;
             }
+            console.log('Potential new work orders found: ', potential_missing_work_order);
+            await logs('with_potential_work_order', potential_missing_work_order)
 
             potential_missing_work_order.forEach(async (work_order_id, index) => {
                 mat_cost_items = []
@@ -235,7 +237,7 @@ async function fetchMaterials() {
     return data || [];
 }
 
-async function logs() {
+async function logs(sequence = 'initial', potential_missing_work_order = []) {
     const filename = `${formatJsDateToDatetime(new Date(), 'date_underscore')}.txt`
     const filesDirectory = path.join('./logs');
 
@@ -254,21 +256,55 @@ async function logs() {
             console.log(msg)
         });
     } else {
-        fs.access(filePath, fs.constants.F_OK, (err) => {
-            const date_time = `[${formatJsDateToDatetime(new Date())}]:`
-            let msg = `${date_time} Content appended to '${filename}' successfully.`
-            if (err) {
-                console.error(`${date_time} File '${filename}' not found. Cannot append.`)
-                msg = `${date_time} File '${filename}' not found. Cannot append.`
-            }
-
-            // File exists, proceed with appending
-            fs.appendFile(filePath, `${msg} \n`, (err) => { // Adding '\n' for new line
+        const date_time = `[${formatJsDateToDatetime(new Date())}]:`
+        if (sequence === 'initial') {
+            fs.access(filePath, fs.constants.F_OK, (err) => {
+                let msg = `${date_time} Initially run the node script and logs successfully.`
                 if (err) {
-                    console.error(`${date_time} Error appending to file:`, err);
+                    console.error(`${date_time} File '${filename}' not found. Cannot append.`)
+                    msg = `${date_time} File '${filename}' not found. Cannot append.`
                 }
-                console.log(msg)
+
+                // File exists, proceed with appending
+                fs.appendFile(filePath, `${msg} \n`, (err) => { // Adding '\n' for new line
+                    if (err) {
+                        console.error(`${date_time} Error appending to file:`, err);
+                    }
+                    console.log(msg)
+                });
             });
-        });
+        } else if (sequence === 'with_potential_work_order') {
+            fs.access(filePath, fs.constants.F_OK, (err) => {
+                let msg = `${date_time} Potential new work orders found: ${potential_missing_work_order.join()} and logs successfully.`
+                if (err) {
+                    console.error(`${date_time} File '${filename}' not found. Cannot append.`)
+                    msg = `${date_time} File '${filename}' not found. Cannot append.`
+                }
+
+                // File exists, proceed with appending
+                fs.appendFile(filePath, `${msg} \n`, (err) => { // Adding '\n' for new line
+                    if (err) {
+                        console.error(`${date_time} Error appending to file:`, err);
+                    }
+                    console.log(msg)
+                });
+            });
+        } else if (sequence === 'without_potential_work_order') {
+            fs.access(filePath, fs.constants.F_OK, (err) => {
+                let msg = `${date_time} No potential new work orders found and logs successfully.`
+                if (err) {
+                    console.error(`${date_time} File '${filename}' not found. Cannot append.`)
+                    msg = `${date_time} File '${filename}' not found. Cannot append.`
+                }
+
+                // File exists, proceed with appending
+                fs.appendFile(filePath, `${msg} \n`, (err) => { // Adding '\n' for new line
+                    if (err) {
+                        console.error(`${date_time} Error appending to file:`, err);
+                    }
+                    console.log(msg)
+                });
+            });
+        }
     }
 }
