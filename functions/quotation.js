@@ -43,7 +43,7 @@ let quotationDetails, workOrderDetail, customerDetail
 export default async function generateQuotation() {
     const materials = await fetchMaterials();
 
-    const quotationJob = CronJob.schedule("*/30 * * * * *", async () => {
+    const quotationJob = CronJob.schedule("*/5 * * * *", async () => {
         console.log(`[${formatJsDateToDatetime(new Date())}]: Generate quote job running every 5 minutes`);
         await logs('initial')
         // console.log('Materials fetched: ', materials.length);
@@ -79,7 +79,7 @@ export default async function generateQuotation() {
                 work_completed = res?.data || [];
                 // console.log('work_completed: ', work_order_id, work_completed.length);
                 if (!work_completed || work_completed.length === 0) {
-                    console.log('No work completed data available.');
+                    console.log('No work order completed available: ', work_order_id);
                 } else {
                     await onAutoGenerateMaterials(work_completed, materials, work_order_id);
                     await onAutoGenerateMisc(work_completed, materials, work_order_id);

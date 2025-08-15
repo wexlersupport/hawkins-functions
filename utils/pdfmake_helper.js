@@ -13,7 +13,10 @@ export default function generatePdf({quotation_id, work_order_id, quotation_deta
   const contact_name = work_order_details?.ContactName ?? customer_details?.Name
   const pdf_name = `${contact_name}_${work_order_id}_${quotation_id}`
   const contact_phone = work_order_details?.ContactPhone ?? customer_details?.Phone
-  const scope_work = work_order_details?.ScopeDetails[0].Description ?? '';
+  let scope_work = work_order_details?.ScopeDetails[0].Description ?? '';
+  if (work_order_details?.ScopeDetails.length > 0) {
+    scope_work = work_order_details?.ScopeDetails.map((item) => item.Description) ?? [];
+  }
   const quote_date = convertDateFormat(quotation_details[0]?.created_at) ?? ''
   const final_price = getFinalPrice(quotation_details) ?? 0
   const final_price_word = convertNumberToWords(final_price, { currencyName: "dollar", currencyNamePlural: "dollars", subCurrencyName: "cent", subCurrencyNamePlural: "cents", leadingAnd: true })
@@ -140,7 +143,13 @@ export default function generatePdf({quotation_id, work_order_id, quotation_deta
               ],
               // Data Rows
               [
-                { text: `- ${scope_work}`, colSpan: 2, style: "tableKey", margin: [10, 0, 0, 0] },
+                {
+                  stack: [
+                    {
+                      ul: scope_work
+                    }
+                  ], colSpan: 2, style: "tableKey", margin: [10, 0, 0, 0]
+                },
                 {}
               ]
             ],
