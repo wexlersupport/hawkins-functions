@@ -118,7 +118,7 @@ export async function deleteOneData(table, dynamic_field, dynamic_value) {
         `;
 
         const deletedItem = await sql(query);
-        console.log('deletedItem ', deletedItem)
+        // console.log('deletedItem ', deletedItem)
 
         if (!deletedItem) {
           return { error: 'ID not found', statusCode: 404 };

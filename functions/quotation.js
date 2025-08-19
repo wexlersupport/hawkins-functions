@@ -58,15 +58,35 @@ export default async function generateQuotation() {
         console.log('Work Orders for today: ', new_work_order);
 
         if (new_work_order.length > 0) {
+            new_work_order.forEach(async (work_order_id) => {
+                const filterObj = {value: +work_order_id, propertyName: 'WorkOrder', operator: 'Equal'}
+                const { response: res } = await fetchWorkCompleted(filterObj)
+                const work_completed = res?.data || []
+
+                quotationDetails = await getDynamicField('quotation_details', work_order_id, 'work_order_id')
+                // console.log('Quotation Details for Order ID:', work_order_id, quotationDetails.data.length);
+
+                if (quotationDetails.data.length > 0) {
+                    const existing_costs = quotationDetails.data.filter((d) => d.item === 'mat_cost' || d.item === 'misc_cost')
+                    // console.log('Work Completed for Order ID:', work_order_id, existing_costs.length, work_completed.length);
+
+                    if (existing_costs.length < work_completed.length) {
+                        // console.log('New work completed found for Order ID:', work_order_id, existing_costs.length, work_completed.length);
+                        const deleteItem = await deleteOneData('quotation_details', 'work_order_id', work_order_id);
+                        // console.log('Deleted existing quotation details for Order ID:', work_order_id, deleteItem.data.length);
+                    }
+                }
+            })
+
             const { data } = await getGroupByWorkOrderId('quotation_details', 'work_order_id', 'work_order_id', new_work_order, 'work_order_id');
             // console.log('getGroupByWorkOrderId: ', new_work_order, data);
             const potential_missing_work_order = await findMissingElements(new_work_order, data);
+            // console.log('Potential new work orders found: ', potential_missing_work_order);
             if (potential_missing_work_order.length === 0) {
                 // console.log('No potential new work orders found.');
                 await logs('without_potential_work_order')
                 return;
             }
-            console.log('Potential new work orders found: ', potential_missing_work_order);
             await logs('with_potential_work_order', potential_missing_work_order)
 
             potential_missing_work_order.forEach(async (work_order_id, index) => {
@@ -136,7 +156,7 @@ async function onSave(work_order_id) {
                 from: 'francis.regala@strattonstudiogames.com',
                 to: 'support@wexlerllc.com',
                 subject: `${name} - WO#${work_order_id} - Quote#${quotation_id}`,
-                html: '<p>Hi,</p><p><br></p><p>You have a new generated quotation available. Please see attached file for more details.</p><p><br></p><p>Thank you.</p>',
+                html: `<p>Hi,</p><p><br></p><p>You have a new generated quotation available. Please see attached file for more details.</p><p><br></p><p>If you wish to edit the generated pdf quote, click link below.</p><p><a href="https://hawkins-webapp.netlify.app/quotation/${quotation_id}" rel="noopener noreferrer" target="_blank">Hawkins Electric Web Application Link</a></p><p><br></p><p>Thank you.</p>`,
                 filename: `${`${name}_${work_order_id}_${quotation_id}`}.pdf`,
                 content: data,
             }
@@ -213,7 +233,7 @@ async function onAutoGenerateMaterials(work_completed, material_list, work_order
 
 async function onAutoGenerateMisc(work_completed, material_list, work_order_id) {
     // Type = 2,3,5 is for miscellaneous
-    const search_value = work_completed?.filter((item) => [2, 3, 5].includes(item.Type))
+    const search_value = work_completed?.filter((item) => item.Type !== 4)
     console.log('Misc Search Value:', search_value.length);
 
     search_value.forEach((item, index) => {

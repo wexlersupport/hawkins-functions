@@ -15,7 +15,8 @@ export default function generatePdf({quotation_id, work_order_id, quotation_deta
   const contact_phone = work_order_details?.ContactPhone ?? customer_details?.Phone
   let scope_work = work_order_details?.ScopeDetails[0].Description ?? '';
   if (work_order_details?.ScopeDetails.length > 0) {
-    scope_work = work_order_details?.ScopeDetails.map((item) => item.Description) ?? [];
+    const details = work_order_details?.ScopeDetails.filter((item) => !item.Description.includes('New Scope')) ?? [];
+    scope_work = details.map((item) => item.Description) ?? [];
   }
   const quote_date = convertDateFormat(quotation_details[0]?.created_at) ?? ''
   const final_price = getFinalPrice(quotation_details) ?? 0
