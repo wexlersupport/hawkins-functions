@@ -1,7 +1,7 @@
 import axios from 'axios'
 
 export default async function generateScopeOfWork(filterObj) {
-
+    const openrouterApiKey = process.env.NUXT_PUBLIC_OPENROUTER_API_KEY
     try {
         const { data } = await axios.post('https://openrouter.ai/api/v1/chat/completions',
         {
@@ -15,7 +15,7 @@ export default async function generateScopeOfWork(filterObj) {
         },
         {
             headers: {
-                Authorization: 'Bearer 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',
+                Authorization: `Bearer ${openrouterApiKey}`,
                 'Content-Type': 'application/json',
             }
         })
