@@ -10,6 +10,7 @@ import fetchWorkOrderId from "../server/api/vista/work-order-id.js";
 import fetchWorkCompleted from "../server/api/vista/work-completed-search.js";
 import fetchWorkOrder from "../server/api/vista/work-order-search.js";
 import fetchCustomerId from "../server/api/vista/customer-id.js";
+import generateScopeOfWork from '../server/api/openrouter-ai/scope-of-works.js';
 import combinedSingleObjectMatchSearch from "../utils/search_materials.js";
 import sendEmail from '../utils/sendgrid_helper.js'
 import generatePdf from '../utils/pdfmake_helper.js'
@@ -141,9 +142,12 @@ async function onSave(work_order_id) {
         // console.log('fetchCustomerId: ', customerResponse);
         customerDetail = customerResponse;
 
+        const {response: generated_scope} = await generateScopeOfWork(workOrderDetail?.ScopeDetails[0]?.Description);
+
         const pdfDoc = generatePdf({
             quotation_id,
             work_order_id,
+            generated_scope,
             quotation_details: quotationDetails.data,
             work_order_details: workOrderDetail,
             customer_details: customerDetail

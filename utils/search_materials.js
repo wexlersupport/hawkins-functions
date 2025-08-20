@@ -62,6 +62,11 @@ export default function combinedSingleObjectMatchSearch(searchTerms, materials) 
                     break;
                 } else {
                     if (index === wordsByTwo.length - 1) {
+                        results.push({
+                            search_term: term,
+                            name: term,
+                            cost: 0,
+                         });
                         console.log(`No matches found for word: ${term} - ${word}`);
                     }
                     
