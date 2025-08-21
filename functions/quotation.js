@@ -56,7 +56,7 @@ export default async function generateQuotation() {
         const filterObj = {value: convertDate(dateAfter), propertyName: 'RequestedDate', operator: 'GreaterThanOrEqual'}
         const { response: res } = await fetchWorkOrder(filterObj)
         const new_work_order = res.data.map(item => item.WorkOrder);
-        console.log('Work Orders for today: ', new_work_order);
+        // console.log('Work Orders for today: ', new_work_order);
 
         if (new_work_order.length > 0) {
             new_work_order.forEach(async (work_order_id) => {
@@ -82,7 +82,7 @@ export default async function generateQuotation() {
             const { data } = await getGroupByWorkOrderId('quotation_details', 'work_order_id', 'work_order_id', new_work_order, 'work_order_id');
             // console.log('getGroupByWorkOrderId: ', new_work_order, data);
             const potential_missing_work_order = await findMissingElements(new_work_order, data);
-            // console.log('Potential new work orders found: ', potential_missing_work_order);
+            console.log('Potential new work orders found: ', potential_missing_work_order);
             if (potential_missing_work_order.length === 0) {
                 // console.log('No potential new work orders found.');
                 await logs('without_potential_work_order')
@@ -143,10 +143,12 @@ async function onSave(work_order_id) {
         customerDetail = customerResponse;
 
         const {response: generated_scope} = await generateScopeOfWork(workOrderDetail?.ScopeDetails[0]?.Description);
+        const { data: config_all } = await getData('configuration');
 
         const pdfDoc = generatePdf({
             quotation_id,
             work_order_id,
+            config_all,
             generated_scope,
             quotation_details: quotationDetails.data,
             work_order_details: workOrderDetail,

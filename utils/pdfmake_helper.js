@@ -6,7 +6,7 @@ import exportBase64Logo from "../utils/quotation/base64_logo.js";
 import pdfFonts from 'pdfmake/build/vfs_fonts.js';
 import { convertDateFormat } from '../utils/index.js'
 
-export default function generatePdf({quotation_id, work_order_id, quotation_details, work_order_details, customer_details, generated_scope}) {
+export default function generatePdf({quotation_id, work_order_id, quotation_details, work_order_details, customer_details, generated_scope, config_all}) {
   // Define your PDF document structure using pdfmake's declarative syntax
   const company_name = work_order_details?.ServiceSite ?? customer_details?.Name
   const address_name = `${customer_details?.BillAddress} ${customer_details?.BillCity}, ${customer_details?.BillState} ${customer_details?.BillZip}`
@@ -18,7 +18,10 @@ export default function generatePdf({quotation_id, work_order_id, quotation_deta
     const details = work_order_details?.ScopeDetails.filter((item) => !item.Description.includes('New Scope')) ?? [];
     scope_work = details.map((item) => item.Description) ?? [];
     if (generated_scope?.choices?.length > 0) {
-      scope_work = [generated_scope?.choices[0]?.message?.content];
+      const config_scope_of_works = config_all.find((item) => item.config_key === 'scope_of_works')
+      if (generated_scope?.choices?.length > 0 && config_scope_of_works?.config_value === 'true') {
+        scope_work = [generated_scope?.choices[0]?.message?.content];
+      }
     }
   }
   const quote_date = convertDateFormat(quotation_details[0]?.created_at) ?? ''
