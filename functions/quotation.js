@@ -52,11 +52,22 @@ export default async function generateQuotation() {
         // const new_work_order = [123472, 123567, 123553, 123509, 123605]
         const today = new Date();
         const dateAfter = new Date(today);
-        dateAfter.setDate(today.getDate() - 1);
-        const filterObj = {value: convertDate(dateAfter), propertyName: 'RequestedDate', operator: 'GreaterThanOrEqual'}
+        dateAfter.setDate(today.getDate() - 15);
+        const filterObj = [
+            {
+                value: convertDate(dateAfter),
+                propertyName: 'RequestedDate',
+                operator: 'GreaterThanOrEqual'
+            },
+            {
+                propertyName: 'Description',
+                value: 'to be quoted',
+                operator: 'Contains'
+            },
+        ]
         const { response: res } = await fetchWorkOrder(filterObj)
         const new_work_order = res.data.map(item => item.WorkOrder);
-        // console.log('Work Orders for today: ', new_work_order);
+        console.log('Work Orders for today: ', new_work_order);
 
         if (new_work_order.length > 0) {
             new_work_order.forEach(async (work_order_id) => {

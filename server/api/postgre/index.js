@@ -3,7 +3,7 @@ const sql = neon(); // automatically uses env NETLIFY_DATABASE_URL
 
 export default async function getData(table, isDesc = false) {
     try {
-        const query = `SELECT * FROM ${table} ORDER BY id ${isDesc ? 'DESC' : 'ASC'}`;
+        const query = `SELECT * FROM ${table} ORDER BY id ${isDesc ? 'DESC' : 'ASC'} LIMIT 1000`;
         const data = await sql(query);
         // console.log('data ', data)
 

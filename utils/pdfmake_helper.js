@@ -114,13 +114,13 @@ export default function generatePdf({quotation_id, work_order_id, quotation_deta
         {
           layout: {
             hLineWidth: function (i, node) {
-              return i === 0 || i === node.table.body.length ? 1 : 0.5;
+              return i === 0 ? 1 : 0;
             },
             vLineWidth: function (i, node) {
               return i === 0 || i === node.table.widths.length ? 0 : 0;
             },
             hLineColor: function (i, node) {
-              return i === 0 || i === node.table.body.length
+              return i === 0
                 ? "#000000"
                 : "#CCCCCC";
             },

@@ -8,7 +8,7 @@ export default async function fetchWorkOrder(filterObj) {
     try {
         const { data } = await axios.post(vistaApiUrl+vistaSubscriptionCode+'/vista/sm/2/data/work_orders/cache/search',
         {
-            filters: [filterObj],
+            filters: filterObj,
         },
         {
             headers: {
