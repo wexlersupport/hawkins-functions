@@ -6,13 +6,14 @@ import exportBase64Logo from "../utils/quotation/base64_logo.js";
 import pdfFonts from 'pdfmake/build/vfs_fonts.js';
 import { convertDateFormat } from '../utils/index.js'
 
-export default function generatePdf({quotation_id, work_order_id, quotation_details, work_order_details, customer_details, generated_scope, config_all}) {
+export default function generatePdf({quotation_id, work_order_id, quotation_details, work_order_details, customer_details, generated_scope, config_all, field_service}) {
   // Define your PDF document structure using pdfmake's declarative syntax
-  const company_name = work_order_details?.ServiceSite ?? customer_details?.Name
-  const address_name = `${customer_details?.BillAddress} ${customer_details?.BillCity}, ${customer_details?.BillState} ${customer_details?.BillZip}`
-  const contact_name = work_order_details?.ContactName ?? customer_details?.Name
-  const pdf_name = `${contact_name}_${work_order_id}_${quotation_id}`
-  const contact_phone = work_order_details?.ContactPhone ?? customer_details?.Phone
+  const company_name = field_service?.CustomerName ?? ''
+  const pdf_name = `${company_name}_${work_order_id}_${quotation_id}`
+  const contact_name = field_service?.ContactName ?? ''
+  const contact_phone = field_service?.ContactPhone ?? ''
+  const address_name = `${field_service?.ServiceSiteDescription ?? ''} ${field_service?.Address1 ?? ''} ${field_service?.Address2 ?? ''} ${field_service?.City ?? ''}, ${field_service?.State ?? ''} ${field_service?.Zip ?? ''}`
+
   let scope_work = work_order_details?.ScopeDetails[0].Description ?? '';
   if (work_order_details?.ScopeDetails.length > 0) {
     const details = work_order_details?.ScopeDetails.filter((item) => !item.Description.includes('New Scope')) ?? [];
@@ -310,9 +311,8 @@ export default function generatePdf({quotation_id, work_order_id, quotation_deta
       ]
     },
     {
-      text: [ `Total for the above scope of work: ------------------------ `,
-        { text: `$${final_price.toFixed(2)}`, bold: true, fontSize: 14, color: "red" },
-        ` ------------------------`
+      text: [ `Total for the above scope of work: `,
+        { text: `$${final_price.toFixed(2)}`, bold: true, fontSize: 14, color: "red" }
       ],
       margin: [0, 10, 0, 0],
       style: {

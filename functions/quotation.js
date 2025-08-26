@@ -8,6 +8,7 @@ import getGroupByWorkOrderId from "../server/api/postgre/quotation_details.js";
 import fetchDynamicMax from "../server/api/postgre/dynamic_max.js";
 import fetchWorkOrderId from "../server/api/vista/work-order-id.js";
 import fetchWorkCompleted from "../server/api/vista/work-completed-search.js";
+import getWorkOrderTrips from '../server/api/vista/field_service/work_order_trips.js';
 import fetchWorkOrder from "../server/api/vista/work-order-search.js";
 import fetchCustomerId from "../server/api/vista/customer-id.js";
 import generateScopeOfWork from '../server/api/openrouter-ai/scope-of-works.js';
@@ -22,8 +23,8 @@ let misc_cost_items = []
 let sub_cost_items = []
 let work_completed = []
 let labor_cost_items = {
-    laborHours: 8,
-    overtimeHours: 0.5,
+    laborHours: 0,
+    overtimeHours: 0,
     laborRate: 55,
     overtimeRate: 82.50
 }
@@ -67,7 +68,7 @@ export default async function generateQuotation() {
         ]
         const { response: res } = await fetchWorkOrder(filterObj)
         const new_work_order = res.data.map(item => item.WorkOrder);
-        console.log('Work Orders for today: ', new_work_order);
+        console.log('Work Orders with "to be quoted" in description: ', new_work_order);
 
         if (new_work_order.length > 0) {
             new_work_order.forEach(async (work_order_id) => {
@@ -93,7 +94,7 @@ export default async function generateQuotation() {
             const { data } = await getGroupByWorkOrderId('quotation_details', 'work_order_id', 'work_order_id', new_work_order, 'work_order_id');
             // console.log('getGroupByWorkOrderId: ', new_work_order, data);
             const potential_missing_work_order = await findMissingElements(new_work_order, data);
-            console.log('Potential new work orders found: ', potential_missing_work_order);
+            console.log('Work orders for quote creation: ', potential_missing_work_order);
             if (potential_missing_work_order.length === 0) {
                 // console.log('No potential new work orders found.');
                 await logs('without_potential_work_order')
@@ -101,10 +102,28 @@ export default async function generateQuotation() {
             }
             await logs('with_potential_work_order', potential_missing_work_order)
 
+            const { data: config_all } = await getData('configuration');
+            const fs_cookie = config_all?.find((item) => item.config_key === 'fs_cookie')
+            const { response: fs_data } = await getWorkOrderTrips(fs_cookie?.config_value || '')
+
             potential_missing_work_order.forEach(async (work_order_id, index) => {
                 mat_cost_items = []
                 misc_cost_items = []
                 sub_cost_items = []
+                labor_cost_items.laborHours = 0
+                let fsDetail = null
+
+                if (fs_data && fs_data[0]?.WorkOrder) {
+                    fsDetail = fs_data?.find((item) => item.WorkOrder === Number(work_order_id))
+                    // console.log('Field Service Work Order: ', fsDetail)
+                    if (!fsDetail) {
+                        console.log('No Field Service data found for Work Order ID: ', work_order_id);
+                    } else {
+                        const cost = fsDetail.EstimatedDuration + (fsDetail.ScopeData ? fsDetail.ScopeData[0]?.SummaryLaborHours : 0)
+                        labor_cost_items.laborHours = cost
+                        console.log('Field Service Work Order labor_cost_items: ', labor_cost_items);
+                    }
+                }
 
                 const filterObj = {value: +work_order_id, propertyName: 'WorkOrder', operator: 'Equal'}
                 const { response: res } = await fetchWorkCompleted(filterObj)
@@ -118,7 +137,7 @@ export default async function generateQuotation() {
                 }
 
                 setTimeout(async () => {
-                    await onSave(work_order_id);
+                    await onSave(work_order_id, config_all, fsDetail);
                 }, index * 1000);
             });
         }
@@ -127,7 +146,7 @@ export default async function generateQuotation() {
     quotationJob.start();
 }
 
-async function onSave(work_order_id) {
+async function onSave(work_order_id, config_all, fsDetail) {
     const max = await fetchDynamicMax('quotation_details', 'quotation_id');
     // console.log('fetchDynamicMax: ', max);
 
@@ -154,7 +173,6 @@ async function onSave(work_order_id) {
         customerDetail = customerResponse;
 
         const {response: generated_scope} = await generateScopeOfWork(workOrderDetail?.ScopeDetails[0]?.Description);
-        const { data: config_all } = await getData('configuration');
 
         const pdfDoc = generatePdf({
             quotation_id,
@@ -163,12 +181,13 @@ async function onSave(work_order_id) {
             generated_scope,
             quotation_details: quotationDetails.data,
             work_order_details: workOrderDetail,
-            customer_details: customerDetail
+            customer_details: customerDetail,
+            field_service: fsDetail,
         })
         // console.log('pdfDoc ', pdfDoc)
 
         pdfDoc.getBase64(async (data) => {
-            const name = workOrderDetail?.ContactName ?? customerDetail?.Name
+            const name = fsDetail?.CustomerName ?? ''
             let emailObj = {
                 from: 'francis.regala@strattonstudiogames.com',
                 to: 'support@wexlerllc.com',
@@ -312,7 +331,7 @@ async function logs(sequence = 'initial', potential_missing_work_order = []) {
             });
         } else if (sequence === 'with_potential_work_order') {
             fs.access(filePath, fs.constants.F_OK, (err) => {
-                let msg = `${date_time} Potential new work orders found: ${potential_missing_work_order.join()} and logs successfully.`
+                let msg = `${date_time} Work orders for quote creation: ${potential_missing_work_order.join()} and logs successfully.`
                 if (err) {
                     console.error(`${date_time} File '${filename}' not found. Cannot append.`)
                     msg = `${date_time} File '${filename}' not found. Cannot append.`
@@ -328,7 +347,7 @@ async function logs(sequence = 'initial', potential_missing_work_order = []) {
             });
         } else if (sequence === 'without_potential_work_order') {
             fs.access(filePath, fs.constants.F_OK, (err) => {
-                let msg = `${date_time} No potential new work orders found and logs successfully.`
+                let msg = `${date_time} No Work orders for quote creation and logs successfully.`
                 if (err) {
                     console.error(`${date_time} File '${filename}' not found. Cannot append.`)
                     msg = `${date_time} File '${filename}' not found. Cannot append.`
