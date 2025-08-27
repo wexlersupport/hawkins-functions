@@ -9,6 +9,7 @@ import fetchDynamicMax from "../server/api/postgre/dynamic_max.js";
 import fetchWorkOrderId from "../server/api/vista/work-order-id.js";
 import fetchWorkCompleted from "../server/api/vista/work-completed-search.js";
 import getWorkOrderTrips from '../server/api/vista/field_service/work_order_trips.js';
+import isLogin from '../server/api/vista/field_service/Is_login.js';
 import fetchWorkOrder from "../server/api/vista/work-order-search.js";
 import fetchCustomerId from "../server/api/vista/customer-id.js";
 import generateScopeOfWork from '../server/api/openrouter-ai/scope-of-works.js';
@@ -49,8 +50,18 @@ export default async function generateQuotation() {
         console.log(`[${formatJsDateToDatetime(new Date())}]: Generate quote job running every 5 minutes`);
         await logs('initial')
         // console.log('Materials fetched: ', materials.length);
+        const { data: config_all } = await getData('configuration');
+        const fs_cookie = config_all?.find((item) => item.config_key === 'fs_cookie')
+        const { response: isLoggedIn } = await isLogin(fs_cookie?.config_value || '')
+        // console.log('Field Service isLoggedIn: ', isLoggedIn);
+        if (!isLoggedIn) {
+            console.log(`[${formatJsDateToDatetime(new Date())}]: Unauthorized to access Field Service Data. Please login to continue.`);
+            console.log(`[${formatJsDateToDatetime(new Date())}]: Script terminated due to unauthorized access.`);
 
-        // const new_work_order = [123472, 123567, 123553, 123509, 123605]
+            return
+        }
+
+        // const new_work_order = [120031, 122630, 122623, 123018, 123476]
         const today = new Date();
         const dateAfter = new Date(today);
         dateAfter.setDate(today.getDate() - 15);
@@ -102,11 +113,12 @@ export default async function generateQuotation() {
             }
             await logs('with_potential_work_order', potential_missing_work_order)
 
-            const { data: config_all } = await getData('configuration');
-            const fs_cookie = config_all?.find((item) => item.config_key === 'fs_cookie')
             const { response: fs_data } = await getWorkOrderTrips(fs_cookie?.config_value || '')
 
-            potential_missing_work_order.forEach(async (work_order_id, index) => {
+            for (const [index, work_order_id] of potential_missing_work_order.entries()) {
+                if (index > 0) {
+                    break;
+                }
                 mat_cost_items = []
                 misc_cost_items = []
                 sub_cost_items = []
@@ -139,7 +151,7 @@ export default async function generateQuotation() {
                 setTimeout(async () => {
                     await onSave(work_order_id, config_all, fsDetail);
                 }, index * 1000);
-            });
+            }
         }
     })
 
