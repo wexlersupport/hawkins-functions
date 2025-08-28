@@ -72,7 +72,7 @@ export default function generatePdf({quotation_id, work_order_id, quotation_deta
             },
           },
           table: {
-            widths: ["30%", "*"],
+            widths: ["25%", "*"],
             body: [
               // Header Row
               [
@@ -85,17 +85,21 @@ export default function generatePdf({quotation_id, work_order_id, quotation_deta
                 { text: `: ${company_name}`, style: "tableKey" },
               ],
               [
-                { text: "Attention", style: "tableValue" },
-                { text: `: ${contact_name} ${contact_phone}`, style: "tableKey" },
+                { text: "Address", style: "tableValue" },
+                { text: `: ${address_name}`, style: "tableKey" },
+              ],
+              [
+                { text: "Work Order Number", style: "tableValue" },
+                { text: `: ${work_order_details?.WorkOrder}`, style: "tableKey" },
               ],
               [
                 { text: "Project Name", style: "tableValue" },
                 { text: `: ${company_name} WO#${work_order_details?.WorkOrder}`, style: "tableKey" },
               ],
-              [
-                { text: "Address", style: "tableValue" },
-                { text: `: ${address_name}`, style: "tableKey" },
-              ]
+              // [
+              //   { text: "Attention", style: "tableValue" },
+              //   { text: `: ${contact_name} ${contact_phone}`, style: "tableKey" },
+              // ],
             ],
           },
           margin: [0, 0, 0, 5],
@@ -312,7 +316,7 @@ export default function generatePdf({quotation_id, work_order_id, quotation_deta
     },
     {
       text: [ `Total for the above scope of work: `,
-        { text: `$${final_price.toFixed(2)}`, bold: true, fontSize: 14, color: "red" }
+        { text: `$${final_price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, bold: true, fontSize: 14 }
       ],
       margin: [0, 10, 0, 0],
       style: {
