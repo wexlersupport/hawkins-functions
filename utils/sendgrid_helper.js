@@ -1,9 +1,10 @@
 import sgMail from '@sendgrid/mail'
+import nodemailer from "nodemailer";
 
 const sendgridApiKey = process.env.NUXT_PUBLIC_SENDGRID_API_KEY
 sgMail.setApiKey(sendgridApiKey)
 
-export default function sendEmail({ from, to, subject, html, filename, content }) {
+export default async function sendEmail({ from, to, subject, html, filename, content }) {
     try {
         const sendContent = { from, to, subject, html }
         if (sendContent.html) {
@@ -14,22 +15,33 @@ export default function sendEmail({ from, to, subject, html, filename, content }
                 content,
                 filename,
                 type: "text/html",
+                encoding: "base64",
                 disposition: "attachment"
             }
         ]
         sendContent.attachments = attachments
 
         // console.log('sendContent ', sendContent)
-        const data = sgMail
-            .send(sendContent)
-            .then((res) => {
-                console.log('Email sent')
-                return res
-            })
-            .catch((error) => {
-                console.error(error)
-                return error
-            })
+        // const data = sgMail
+        //     .send(sendContent)
+        //     .then((res) => {
+        //         console.log('Email sent')
+        //         return res
+        //     })
+        //     .catch((error) => {
+        //         console.error(error)
+        //         return error
+        //     })
+
+        const transporter = nodemailer.createTransport({
+            service: "gmail", // you can also use "Outlook365", "Yahoo", or custom SMTP
+            auth: {
+                user: from, // your email
+                pass: 'mizh igci lyma mtpx', // app password (not your real password!)
+            },
+        });
+
+        const data = await transporter.sendMail(sendContent);
 
         return data;
     } catch (error) {
