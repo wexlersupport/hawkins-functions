@@ -18,6 +18,7 @@ import sendEmail from '../utils/sendgrid_helper.js'
 import generatePdf from '../utils/pdfmake_helper.js'
 import formatJsDateToDatetime, {convertDate} from "../utils/index.js";
 import onMatCostSave, { onMiscCostSave, onSubconCostSave, onLaborCostSave, onBidPriceCostSave } from "../utils/quotation/create.js";
+import { fetchFieldServiceAttachmentsList, processUrl } from '../utils/process_pdf_url.js';
 
 let mat_cost_items = []
 let misc_cost_items = []
@@ -124,6 +125,7 @@ export default async function generateQuotation() {
                 sub_cost_items = []
                 labor_cost_items.laborHours = 0
                 let fsDetail = null
+                let scope_work = null
 
                 if (fs_data && fs_data[0]?.WorkOrder) {
                     fsDetail = fs_data?.find((item) => item.WorkOrder === Number(work_order_id))
@@ -131,9 +133,69 @@ export default async function generateQuotation() {
                     if (!fsDetail) {
                         console.log('No Field Service data found for Work Order ID: ', work_order_id);
                     } else {
-                        const cost = fsDetail.EstimatedDuration + (fsDetail.ScopeData ? fsDetail.ScopeData[0]?.SummaryLaborHours : 0)
-                        labor_cost_items.laborHours = cost
-                        console.log('Field Service Work Order labor_cost_items: ', labor_cost_items);
+                        const fs_attachments_list = await fetchFieldServiceAttachmentsList(fsDetail, config_all)
+                        // console.log('Field Service fs_attachments_list: ', fs_attachments_list)
+                        if (fs_attachments_list && fs_attachments_list.length > 0) {
+                            const fs_attachment = fs_attachments_list?.find((item) => {
+                                return item?.AttachmentFileName.includes('Service Quote') || item?.AttachmentFileName.includes('Service_Quote') || item?.Description.includes('Service Quote') || item?.Description.includes('Service_Quote')
+                            })
+                            // console.log('Field Service fs_attachment: ', fs_attachment)
+                            if (fs_attachment) {
+                                const pdf_text = await processUrl(fs_attachment, config_all)
+                                // console.log('Field Service pdf_text: ', pdf_text)
+
+                                const scope_of_info_index = pdf_text?.findIndex((item) => item.includes('Scope Information') || item.includes('Scope of quote')) || 0
+                                // console.log('Field Service scope_of_info_index: ', scope_of_info_index)
+                                const material_index = pdf_text?.findIndex((item) => item.includes('Material')) || 0
+                                // console.log('Field Service material_index: ', material_index)
+                                scope_work = pdf_text?.slice(scope_of_info_index + 1, material_index).join('') || ''
+                                // console.log('Field Service scope_work: ', scope_work)
+
+                                const number_tech_index = pdf_text?.findIndex((item) => item.includes('Number of Tech') && !item.includes('Estimate')) || 0
+                                // console.log('Field Service number_tech_index: ', number_tech_index)
+
+                                const number_helper_index = pdf_text?.findIndex((item) => item.includes('Number of Helper') || item.includes('helper')) || 0
+                                // console.log('Field Service number_helper_index: ', number_helper_index)
+
+                                const hours_to_complete_index = pdf_text?.findIndex((item) => item.includes('Hours To Complete') || item.includes('Hour To Complete')) || 0
+                                // console.log('Field Service hours_to_complete_index: ', hours_to_complete_index)
+
+                                const page_number_index = pdf_text?.findIndex((item) => item.includes('1 of') || item.includes('Service Quote')) || 0
+                                // console.log('Field Service page_number_index: ', page_number_index)
+
+                                const number_tech = pdf_text?.slice(number_tech_index + 1, number_helper_index - 1).join('') || ''
+                                // console.log('Field Service number_tech: ', number_tech)
+                                let number_tech_lastdigit = number_tech.match(/\d+(?=\D*$)/) || [1];
+                                number_tech_lastdigit = Number(number_tech_lastdigit[0])
+                                console.log('Field Service number_tech_lastdigit: ', number_tech_lastdigit)
+                                
+                                const number_helper = pdf_text?.slice(number_helper_index + 1, hours_to_complete_index - 1).join('') || ''
+                                // console.log('Field Service number_helper: ', number_helper)
+                                let number_helper_lastdigit = number_helper.match(/\d+(?=\D*$)/) || [1];
+                                number_helper_lastdigit = Number(number_helper_lastdigit[0])
+                                console.log('Field Service number_helper_lastdigit: ', number_helper_lastdigit)
+
+                                const hours_to_complete = pdf_text?.slice(hours_to_complete_index + 1, page_number_index - 1).join('') || ''
+                                console.log('Field Service hours_to_complete: ', hours_to_complete)
+                                let hours_to_complete_lastdigit = hours_to_complete.match(/\d+(?=\D*$)/) || [1];
+                                hours_to_complete_lastdigit = Number(hours_to_complete_lastdigit[0])
+                                if (hours_to_complete.includes('DAY') || hours_to_complete.includes('Day') || hours_to_complete.includes('day')) {
+                                    hours_to_complete_lastdigit = hours_to_complete_lastdigit * 8
+                                }
+                                console.log('Field Service hours_to_complete_lastdigit: ', hours_to_complete_lastdigit)
+
+                                const cost = hours_to_complete_lastdigit * (number_tech_lastdigit + number_helper_lastdigit)
+                                labor_cost_items.laborHours = cost
+                            } else {
+                                console.log(`[${formatJsDateToDatetime(new Date())}]: No Field Service attachments found for Work Order ID ${work_order_id}.`);
+                                const cost = fsDetail.EstimatedDuration + (fsDetail.ScopeData ? fsDetail.ScopeData[0]?.SummaryLaborHours : 0)
+                                labor_cost_items.laborHours = cost
+                            }
+                        } else {
+                            console.log(`[${formatJsDateToDatetime(new Date())}]: No Field Service attachments found for Work Order ID ${work_order_id}.`);
+                            const cost = fsDetail.EstimatedDuration + (fsDetail.ScopeData ? fsDetail.ScopeData[0]?.SummaryLaborHours : 0)
+                            labor_cost_items.laborHours = cost
+                        }
                     }
                 }
 
@@ -149,7 +211,7 @@ export default async function generateQuotation() {
                 }
 
                 setTimeout(async () => {
-                    await onSave(work_order_id, config_all, fsDetail);
+                    await onSave(work_order_id, config_all, fsDetail, scope_work);
                 }, index * 1000);
             }
         }
@@ -158,7 +220,7 @@ export default async function generateQuotation() {
     quotationJob.start();
 }
 
-async function onSave(work_order_id, config_all, fsDetail) {
+async function onSave(work_order_id, config_all, fsDetail, scope_work) {
     const max = await fetchDynamicMax('quotation_details', 'quotation_id');
     // console.log('fetchDynamicMax: ', max);
 
@@ -195,6 +257,7 @@ async function onSave(work_order_id, config_all, fsDetail) {
             work_order_details: workOrderDetail,
             customer_details: customerDetail,
             field_service: fsDetail,
+            scope_work: scope_work,
         })
         // console.log('pdfDoc ', pdfDoc)
 
