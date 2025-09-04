@@ -126,6 +126,7 @@ export default async function generateQuotation() {
                 labor_cost_items.laborHours = 0
                 let fsDetail = null
                 let scope_work = null
+                let site_contact = null
 
                 if (fs_data && fs_data[0]?.WorkOrder) {
                     fsDetail = fs_data?.find((item) => item.WorkOrder === Number(work_order_id))
@@ -148,8 +149,25 @@ export default async function generateQuotation() {
                                 // console.log('Field Service scope_of_info_index: ', scope_of_info_index)
                                 const material_index = pdf_text?.findIndex((item) => item.includes('Material')) || 0
                                 // console.log('Field Service material_index: ', material_index)
-                                scope_work = pdf_text?.slice(scope_of_info_index + 1, material_index).join('') || ''
+                                scope_work = pdf_text?.slice(scope_of_info_index + 1, material_index).filter((item) => item.trim() !== "") || ''
+                                scope_work = scope_work.join(' ') || ''
+                                if (scope_work?.includes('Scope of quoted work')) {
+                                    scope_work = scope_work?.replace('Scope of quoted work', '').trim()
+                                }
                                 // console.log('Field Service scope_work: ', scope_work)
+
+                                const contact_name_index = pdf_text?.findIndex(
+                                    (item) => item.includes('Contact Name') || item.includes('Phone Number') || item.includes('Contact')
+                                ) || 0
+                                // console.log('Field Service contact_name_index: ', contact_name_index)
+                                const email_address_index = pdf_text?.findIndex(
+                                    (item) => item.includes('Email Address') || item.includes('Scope Information')
+                                ) || 0
+                                // console.log('Field Service email_address_index: ', email_address_index)
+                                if (contact_name_index >= 0 && email_address_index >= 0) {
+                                    site_contact = pdf_text?.slice(contact_name_index + 1, email_address_index - 1)?.join('')?.trim() || ''
+                                }
+                                // console.log('Field Service site_contact: ', site_contact)
 
                                 const number_tech_index = pdf_text?.findIndex((item) => item.includes('Number of Tech') && !item.includes('Estimate')) || 0
                                 // console.log('Field Service number_tech_index: ', number_tech_index)
@@ -211,7 +229,7 @@ export default async function generateQuotation() {
                 }
 
                 setTimeout(async () => {
-                    await onSave(work_order_id, config_all, fsDetail, scope_work);
+                    await onSave(work_order_id, config_all, fsDetail, scope_work, site_contact);
                 }, index * 1000);
             }
         }
@@ -220,7 +238,7 @@ export default async function generateQuotation() {
     quotationJob.start();
 }
 
-async function onSave(work_order_id, config_all, fsDetail, scope_work) {
+async function onSave(work_order_id, config_all, fsDetail, scope_work, site_contact) {
     const max = await fetchDynamicMax('quotation_details', 'quotation_id');
     // console.log('fetchDynamicMax: ', max);
 
@@ -257,7 +275,8 @@ async function onSave(work_order_id, config_all, fsDetail, scope_work) {
             work_order_details: workOrderDetail,
             customer_details: customerDetail,
             field_service: fsDetail,
-            scope_work: scope_work,
+            new_scope_work: scope_work,
+            site_contact: site_contact,
         })
         // console.log('pdfDoc ', pdfDoc)
 

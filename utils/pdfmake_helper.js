@@ -6,18 +6,18 @@ import exportBase64Logo from "../utils/quotation/base64_logo.js";
 import pdfFonts from 'pdfmake/build/vfs_fonts.js';
 import { convertDateFormat } from '../utils/index.js'
 
-export default function generatePdf({quotation_id, work_order_id, quotation_details, work_order_details, customer_details, generated_scope, config_all, field_service}) {
+export default function generatePdf({quotation_id, work_order_id, quotation_details, work_order_details, customer_details, generated_scope, config_all, field_service, new_scope_work, site_contact}) {
   // Define your PDF document structure using pdfmake's declarative syntax
   const company_name = field_service?.CustomerName ?? ''
   const pdf_name = `${company_name}_${work_order_id}_${quotation_id}`
-  const contact_name = field_service?.ContactName ?? ''
+  const contact_name = site_contact ?? field_service?.ContactName + ' ' + field_service?.ContactPhone
   const contact_phone = field_service?.ContactPhone ?? ''
   const address_name = `${field_service?.ServiceSiteDescription ?? ''} ${field_service?.Address1 ?? ''} ${field_service?.Address2 ?? ''} ${field_service?.City ?? ''}, ${field_service?.State ?? ''} ${field_service?.Zip ?? ''}`
 
   let scope_work = work_order_details?.ScopeDetails[0].Description ?? '';
   if (work_order_details?.ScopeDetails.length > 0) {
     const details = work_order_details?.ScopeDetails.filter((item) => !item.Description.includes('New Scope')) ?? [];
-    scope_work = scope_work ? [scope_work] : details.map((item) => item.Description);
+    scope_work = new_scope_work ? [new_scope_work] : details.map((item) => item.Description);
     if (generated_scope?.choices?.length > 0) {
       const config_scope_of_works = config_all.find((item) => item.config_key === 'scope_of_works')
       if (generated_scope?.choices?.length > 0 && config_scope_of_works?.config_value === 'true') {
@@ -89,12 +89,16 @@ export default function generatePdf({quotation_id, work_order_id, quotation_deta
                 { text: `: ${address_name}`, style: "tableKey" },
               ],
               [
+                { text: "Site Contact", style: "tableValue" },
+                { text: `: ${contact_name}`, style: "tableKey" },
+              ],
+              [
                 { text: "Work Order Number", style: "tableValue" },
                 { text: `: ${work_order_details?.WorkOrder}`, style: "tableKey" },
               ],
               [
                 { text: "Project Name", style: "tableValue" },
-                { text: `: ${company_name} WO#${work_order_details?.WorkOrder}`, style: "tableKey" },
+                { text: `: ${company_name}`, style: "tableKey" },
               ],
               // [
               //   { text: "Attention", style: "tableValue" },

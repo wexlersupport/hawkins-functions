@@ -47,6 +47,8 @@ export async function handlePdfData(pdfData) {
 
     const pdf = await loadingTask.promise;
     let pagesTextArray = "";
+    const allowed = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+=-[]{};:'\",.<>/?`~|\\ ";
+    const regex = new RegExp(`[^${allowed.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&')}]`, "g");
 
     for (let i = 1; i <= pdf.numPages; i++) {
       const page = await pdf.getPage(i);
@@ -77,7 +79,7 @@ export async function handlePdfData(pdfData) {
       } else {
         // 📝 Extract selectable text
         const pageText = textContent.items
-          .map((item) => item.str)
+          .map((item) => item.str?.replace(regex, ''))
           .join("\n");
         pagesTextArray += pageText + "\n";
       }
