@@ -3,7 +3,7 @@ import 'dotenv/config'
 import path from 'path';
 import fs from 'fs';
 import CronJob from "node-cron"
-import getData, {deleteOneData, insertData, getDynamicField} from "../server/api/postgre/index.js";
+import getData, {deleteOneData, insertData, getDynamicField, searchMaterials} from "../server/api/postgre/index.js";
 import getGroupByWorkOrderId from "../server/api/postgre/quotation_details.js";
 import fetchDynamicMax from "../server/api/postgre/dynamic_max.js";
 import fetchWorkOrderId from "../server/api/vista/work-order-id.js";
@@ -47,7 +47,7 @@ let quotationDetails, workOrderDetail, customerDetail
 export default async function generateQuotation() {
     const materials = await fetchMaterials();
 
-    const quotationJob = CronJob.schedule("*/5 * * * *", async () => {
+    const quotationJob = CronJob.schedule("*/30 * * * * *", async () => {
         console.log(`[${formatJsDateToDatetime(new Date())}]: Generate quote job running every 5 minutes`);
         await logs('initial')
         // console.log('Materials fetched: ', materials.length);
@@ -83,25 +83,23 @@ export default async function generateQuotation() {
         console.log('Work Orders with "to be quoted" in description: ', new_work_order);
 
         if (new_work_order.length > 0) {
-            new_work_order.forEach(async (work_order_id) => {
-                const filterObj = {value: +work_order_id, propertyName: 'WorkOrder', operator: 'Equal'}
-                const { response: res } = await fetchWorkCompleted(filterObj)
-                const work_completed = res?.data || []
+            /*
+                new_work_order.forEach(async (work_order_id) => {
+                    const filterObj = {value: +work_order_id, propertyName: 'WorkOrder', operator: 'Equal'}
+                    const { response: res } = await fetchWorkCompleted(filterObj)
+                    const work_completed = res?.data || []
 
-                quotationDetails = await getDynamicField('quotation_details', work_order_id, 'work_order_id')
-                // console.log('Quotation Details for Order ID:', work_order_id, quotationDetails.data.length);
+                    quotationDetails = await getDynamicField('quotation_details', work_order_id, 'work_order_id')
+                    // console.log('Quotation Details for Order ID:', work_order_id, quotationDetails.data.length);
 
-                if (quotationDetails.data.length > 0) {
-                    const existing_costs = quotationDetails.data.filter((d) => d.item === 'mat_cost' || d.item === 'misc_cost')
-                    // console.log('Work Completed for Order ID:', work_order_id, existing_costs.length, work_completed.length);
-
-                    if (existing_costs.length < work_completed.length) {
-                        // console.log('New work completed found for Order ID:', work_order_id, existing_costs.length, work_completed.length);
-                        const deleteItem = await deleteOneData('quotation_details', 'work_order_id', work_order_id);
-                        // console.log('Deleted existing quotation details for Order ID:', work_order_id, deleteItem.data.length);
+                    if (quotationDetails.data.length > 0) {
+                        const existing_costs = quotationDetails.data.filter((d) => d.item === 'mat_cost' || d.item === 'misc_cost')
+                        if (existing_costs.length < work_completed.length) {
+                            const deleteItem = await deleteOneData('quotation_details', 'work_order_id', work_order_id);
+                        }
                     }
-                }
-            })
+                })
+            */
 
             const { data } = await getGroupByWorkOrderId('quotation_details', 'work_order_id', 'work_order_id', new_work_order, 'work_order_id');
             // console.log('getGroupByWorkOrderId: ', new_work_order, data);
@@ -127,6 +125,7 @@ export default async function generateQuotation() {
                 let fsDetail = null
                 let scope_work = null
                 let site_contact = null
+                let pdfExtracted = null
 
                 if (fs_data && fs_data[0]?.WorkOrder) {
                     fsDetail = fs_data?.find((item) => item.WorkOrder === Number(work_order_id))
@@ -143,6 +142,7 @@ export default async function generateQuotation() {
                             // console.log('Field Service fs_attachment: ', fs_attachment)
                             if (fs_attachment) {
                                 const pdf_text = await processUrl(fs_attachment, config_all)
+                                pdfExtracted = pdf_text
                                 // console.log('Field Service pdf_text: ', pdf_text)
 
                                 const scope_of_info_index = pdf_text?.findIndex((item) => item.includes('Scope Information') || item.includes('Scope of quote')) || 0
@@ -224,7 +224,7 @@ export default async function generateQuotation() {
                 if (!work_completed || work_completed.length === 0) {
                     console.log('No work order completed available: ', work_order_id);
                 } else {
-                    await onAutoGenerateMaterials(work_completed, materials, work_order_id);
+                    await onAutoGenerateMaterials(work_completed, materials, work_order_id, pdfExtracted);
                     await onAutoGenerateMisc(work_completed, materials, work_order_id);
                 }
 
@@ -284,7 +284,7 @@ async function onSave(work_order_id, config_all, fsDetail, scope_work, site_cont
             const name = fsDetail?.CustomerName ?? ''
             let emailObj = {
                 from: 'francis.regala@strattonstudiogames.com',
-                to: 'support@wexlerllc.com',
+                to: 'francis@viacry.com',
                 subject: `${name} - WO#${work_order_id} - Quote#${quotation_id}`,
                 html: `<p>Hi,</p><p><br></p><p>You have a new generated quotation available. Please see attached file for more details.</p><p><br></p><p>If you wish to edit the generated pdf quote, click link below.</p><p><a href="https://hawkins-webapp.netlify.app/quotation/${quotation_id}" rel="noopener noreferrer" target="_blank">Hawkins Electric Web Application Link</a></p><p><br></p><p>Thank you.</p>`,
                 filename: `${`${name}_${work_order_id}_${quotation_id}`}.pdf`,
@@ -326,17 +326,51 @@ async function onSave(work_order_id, config_all, fsDetail, scope_work, site_cont
     return null
 }
 
-async function onAutoGenerateMaterials(work_completed, material_list, work_order_id) {
-    // Type = 4 is for materials
-    const search_value = work_completed?.filter((item) => item.Type === 4).map((_item) => _item.Description) || [];
-    // console.log('Search Value:', search_value);
-    if (!search_value || search_value.length === 0) {
-        console.log('No search terms provided.');
-        return;
+async function onAutoGenerateMaterials(work_completed, material_list, work_order_id, pdfExtracted) {
+    let search_value = []
+    if (pdfExtracted || pdfExtracted?.length > 0) {
+        pdfExtracted = pdfExtracted.map((item) => item?.trim()).filter((item) => item !== '');
+        // console.log('pdfExtracted.value:', pdfExtracted);
+        const indexMaterial = pdfExtracted.findIndex((str) => str.includes('Material'));
+        const indexEstimatedTime = pdfExtracted.findIndex((str) => str.includes('Estimated Time'));
+        // console.log('indexMaterial:', indexMaterial, 'indexEstimatedTime:', indexEstimatedTime);
+        if (indexMaterial === -1 || indexEstimatedTime === -1 || indexEstimatedTime <= indexMaterial) {
+            // console.log('Material or Estimated Time section not found or in wrong order.');
+            return;
+        }
+        const result = pdfExtracted.slice(indexMaterial + 1, indexEstimatedTime).join(' ');
+        // console.log('Extracted Material Section:', result);
+        search_value = result.split(/,(?![^(]*\))/).map((s) => s.trim());
+        // console.log('search_value:', search_value);
     }
+    if (!search_value || search_value.length === 0) {
+        // Type = 4 is for materials
+        search_value = work_completed?.filter((item) => item.Type === 4).map((_item) => _item.Description) || [];
+        // console.log('Search Value:', search_value);
+        if (!search_value || search_value.length === 0) {
+            console.log('No search terms provided.');
+            return;
+        }
+    }
+    // console.log('Final Search Value:', search_value.length);
 
-    const searchResultsAsObjects = combinedSingleObjectMatchSearch(search_value, material_list);
-    // console.log('Search Results:', searchResultsAsObjects.length);
+    // const searchResultsAsObjects = combinedSingleObjectMatchSearch(search_value, material_list);
+    let searchResultsAsObjects = [];
+    for (const search_term of search_value) {
+        const { data } = await searchMaterials('materials', search_term);
+        // console.log(`Search result for "${search_term}":`, data[0]);
+        if (data && data.length > 0) {
+            searchResultsAsObjects.push({ work_order_id, search_term, ...data[0] });
+        } else {
+            searchResultsAsObjects.push({
+                work_order_id,
+                search_term,
+                name: search_term,
+                cost: 0
+            });
+        }
+    }
+    // console.log('searchResultsAsObjects1:', searchResultsAsObjects.length);
     if (searchResultsAsObjects) {
         searchResultsAsObjects.forEach((term) => {
             if (term) {
@@ -348,6 +382,7 @@ async function onAutoGenerateMaterials(work_completed, material_list, work_order
                 })
             }
         });
+        console.log('mat_cost_items:', mat_cost_items.length);
 
         sub_cost_items = [];
         sub_cost_items.push({
