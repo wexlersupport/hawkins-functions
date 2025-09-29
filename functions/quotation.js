@@ -62,7 +62,7 @@ export default async function generateQuotation() {
             return
         }
 
-        // const new_work_order = [120031, 122630, 122623, 123018, 123476]
+        // const new_work_order = [120031, 122630, 122623, 123018, 123476, 123587, 123583, 122820, 121049, 123863]
         const today = new Date();
         const dateAfter = new Date(today);
         dateAfter.setDate(today.getDate() - 15);

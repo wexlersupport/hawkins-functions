@@ -1,8 +1,8 @@
 import sgMail from '@sendgrid/mail'
 import nodemailer from "nodemailer";
 
-const sendgridApiKey = process.env.NUXT_PUBLIC_SENDGRID_API_KEY
-sgMail.setApiKey(sendgridApiKey)
+// const sendgridApiKey = process.env.NUXT_PUBLIC_SENDGRID_API_KEY
+// sgMail.setApiKey(sendgridApiKey)
 
 export default async function sendEmail({ from, to, subject, html, filename, content }) {
     try {

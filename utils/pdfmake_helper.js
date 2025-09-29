@@ -96,10 +96,10 @@ export default function generatePdf({quotation_id, work_order_id, quotation_deta
                 { text: "Work Order Number", style: "tableValue" },
                 { text: `: ${work_order_details?.WorkOrder}`, style: "tableKey" },
               ],
-              [
-                { text: "Project Name", style: "tableValue" },
-                { text: `: ${company_name}`, style: "tableKey" },
-              ],
+              // [
+              //   { text: "Project Name", style: "tableValue" },
+              //   { text: `: ${company_name}`, style: "tableKey" },
+              // ],
               // [
               //   { text: "Attention", style: "tableValue" },
               //   { text: `: ${contact_name} ${contact_phone}`, style: "tableKey" },
