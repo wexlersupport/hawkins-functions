@@ -47,7 +47,7 @@ let quotationDetails, workOrderDetail, customerDetail
 export default async function generateQuotation() {
     const materials = await fetchMaterials();
 
-    const quotationJob = CronJob.schedule("*/30 * * * * *", async () => {
+    const quotationJob = CronJob.schedule("*/5 * * * *", async () => {
         console.log(`[${formatJsDateToDatetime(new Date())}]: Generate quote job running every 5 minutes`);
         await logs('initial')
         // console.log('Materials fetched: ', materials.length);
@@ -63,24 +63,24 @@ export default async function generateQuotation() {
         }
 
         // const new_work_order = [120031, 122630, 122623, 123018, 123476, 123587, 123583, 122820, 121049, 123863]
-        const today = new Date();
-        const dateAfter = new Date(today);
-        dateAfter.setDate(today.getDate() - 15);
+        // const today = new Date();
+        // const dateAfter = new Date(today);
+        // dateAfter.setDate(today.getDate() - 15);
         const filterObj = [
             {
-                value: convertDate(dateAfter),
-                propertyName: 'RequestedDate',
-                operator: 'GreaterThanOrEqual'
+                propertyName: 'ScopeDetails[0].CallType',
+                value: 'to be quot',
+                operator: 'Contains'
             },
             {
-                propertyName: 'Description',
-                value: 'to be quoted',
+                propertyName: 'ScopeDetails[0].ServiceCenter',
+                value: 'com',
                 operator: 'Contains'
             },
         ]
         const { response: res } = await fetchWorkOrder(filterObj)
         const new_work_order = res.data.map(item => item.WorkOrder);
-        console.log('Work Orders with "to be quoted" in description: ', new_work_order);
+        console.log('Work Orders with "to be quoted" in ScopeDetails[0].CallType: ', new_work_order);
 
         if (new_work_order.length > 0) {
             /*
@@ -340,7 +340,7 @@ async function onAutoGenerateMaterials(work_completed, material_list, work_order
         }
         const result = pdfExtracted.slice(indexMaterial + 1, indexEstimatedTime).join(' ');
         // console.log('Extracted Material Section:', result);
-        search_value = result.split(/,(?![^(]*\))/).map((s) => s.trim());
+        search_value = result.split(/,(?![^(]*\))/).map((s) => s.trim()).filter((s) => s.length > 0);
         // console.log('search_value:', search_value);
     }
     if (!search_value || search_value.length === 0) {
