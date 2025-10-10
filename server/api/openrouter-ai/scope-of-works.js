@@ -9,7 +9,7 @@ export default async function generateScopeOfWork(filterObj) {
             messages: [
                 {
                     role: "user",
-                    content: `With limit of 200 characters, Please give me a simple scope of work completed with objective and materials based on this '${filterObj.scope_of_works}'`
+                    content: `With limit of 200 characters, Please give me a simple scope of work completed with objective and materials based on this '${filterObj?.scope_of_works}'`
                 }
             ]
         },

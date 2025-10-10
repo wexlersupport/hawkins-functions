@@ -265,6 +265,7 @@ async function onSave(work_order_id, config_all, fsDetail, scope_work, site_cont
         customerDetail = customerResponse;
 
         const {response: generated_scope} = await generateScopeOfWork(workOrderDetail?.ScopeDetails[0]?.Description);
+        // console.log('generated_scope: ', generated_scope);
 
         const pdfDoc = generatePdf({
             quotation_id,

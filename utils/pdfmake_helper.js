@@ -16,7 +16,7 @@ export default function generatePdf({quotation_id, work_order_id, quotation_deta
 
   let scope_work = work_order_details?.ScopeDetails[0].Description ?? '';
   if (work_order_details?.ScopeDetails.length > 0) {
-    const details = work_order_details?.ScopeDetails.filter((item) => !item.Description.includes('New Scope')) ?? [];
+    const details = work_order_details?.ScopeDetails.filter((item) => !item?.Description?.includes('New Scope')) ?? [];
     scope_work = new_scope_work ? [new_scope_work] : details.map((item) => item.Description);
     if (generated_scope?.choices?.length > 0) {
       const config_scope_of_works = config_all.find((item) => item.config_key === 'scope_of_works')
